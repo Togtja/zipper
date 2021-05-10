@@ -40,7 +40,7 @@ private:
 
         return ZipEntry(std::string(filename_inzip), file_info.compressed_size, file_info.uncompressed_size,
                         file_info.tmu_date.tm_year, file_info.tmu_date.tm_mon, file_info.tmu_date.tm_mday,
-                        file_info.tmu_date.tm_hour, file_info.tmu_date.tm_min, file_info.tmu_date.tm_sec, file_info.dosDate);
+                        file_info.tmu_date.tm_hour, file_info.tmu_date.tm_min, file_info.tmu_date.tm_sec, file_info.dosDate, file_info.crc);
     }
 
 #if 0
@@ -206,7 +206,7 @@ public:
         }
     }
 
-#elif defined unix || defined __APPLE__
+#elif defined(unix) || defined(__APPLE__) || defined(__linux__)
     void changeFileDate(const std::string& filename, uLong /*dosdate*/, tm_unz tmu_date)
     {
         struct utimbuf ut;
@@ -322,6 +322,21 @@ public:
         } while (err > 0);
 
         return err;
+    }
+    bool testZipfile()
+    {
+        for (auto&& i : entries())
+        {
+            std::vector<unsigned char> vec;
+            extractToMemory(vec, i);
+            unsigned long actual_crc = crc32(0L, Z_NULL, 0);
+            actual_crc = crc32(actual_crc, vec.data(), vec.size());
+            if (actual_crc != i.crc)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
 public:
@@ -560,6 +575,11 @@ bool Unzipper::extract(const std::string& destination, const std::map<std::strin
 bool Unzipper::extract(const std::string& destination)
 {
     return m_impl->extractAll(destination, std::map<std::string, std::string>());
+}
+
+bool Unzipper::testZipfile()
+{
+    return m_impl->testZipfile();
 }
 
 void Unzipper::release()

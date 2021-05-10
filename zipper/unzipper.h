@@ -18,7 +18,6 @@ class ZipEntry;
 class Unzipper
 {
 public:
-
     // -------------------------------------------------------------------------
     //! \brief Regular zip decompressor (from zip archive file).
     //!
@@ -126,17 +125,22 @@ public:
                               std::vector<unsigned char>& vec);
 
     // -------------------------------------------------------------------------
+    //! \brief Extract the zip entries to memory and test their CRCs
+    //!
+    //! \return true if all CRC were valid, else return false.
+    // -------------------------------------------------------------------------
+    bool testZipfile();
+
+    // -------------------------------------------------------------------------
     //! \brief Relese memory. Called by the destructor.
     // -------------------------------------------------------------------------
     void close();
 
 private:
-
     //! \brief Relese memory
     void release();
 
 private:
-
     std::istream& m_ibuffer;
     std::vector<unsigned char>& m_vecbuffer;
     std::string m_zipname;
@@ -155,7 +159,6 @@ private:
 class ZipEntry
 {
 private:
-
     typedef struct
     {
         unsigned int tm_sec;
@@ -167,7 +170,6 @@ private:
     } tm_s;
 
 public:
-
     ZipEntry(const std::string& name,
              unsigned long long int compressed_size,
              unsigned long long int uncompressed_size,
@@ -177,9 +179,9 @@ public:
              unsigned int hour,
              unsigned int minute,
              unsigned int second,
-             unsigned long dosdate)
-        : name(name), compressedSize(compressed_size),
-          uncompressedSize(uncompressed_size), dosdate(dosdate)
+             unsigned long dosdate,
+             unsigned long crc_)
+        : name(name), compressedSize(compressed_size), uncompressedSize(uncompressed_size), dosdate(dosdate), crc(crc_)
     {
         // timestamp YYYY-MM-DD HH:MM:SS
         std::stringstream str;
@@ -199,6 +201,7 @@ public:
     std::string name, timestamp;
     unsigned long long int compressedSize, uncompressedSize;
     unsigned long dosdate;
+    unsigned long crc;
     tm_s unixdate;
 };
 
