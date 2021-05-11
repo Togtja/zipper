@@ -441,12 +441,6 @@ public:
         {
             return err;
         }
-        unsigned long actual_crc = 0;
-        actual_crc = crc32(actual_crc, vec.data(), vec.size());
-        if (actual_crc != info.crc)
-        {
-            return UNZ_CRCERROR;
-        }
         stream.write(reinterpret_cast<char*>(vec.data()), vec.size());
         if (stream.good())
         {
