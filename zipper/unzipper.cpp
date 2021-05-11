@@ -141,6 +141,30 @@ public:
         return UNZ_OK == err;
     }
 
+    bool extractCurrentEntryToFileAndTest(ZipEntry& entryinfo, const std::string& fileName)
+    {
+        int err = UNZ_OK;
+
+        if (!entryinfo.valid())
+            return false;
+
+        err = extractToFileAndTest(fileName, entryinfo);
+        if (UNZ_OK == err)
+        {
+            err = unzCloseCurrentFile(m_zf);
+            if (UNZ_OK != err)
+            {
+                std::stringstream str;
+                str << "Error " << err << " openinginternal file '"
+                    << entryinfo.name << "' in zip";
+
+                throw EXCEPTION_CLASS(str.str().c_str());
+            }
+        }
+
+        return UNZ_OK == err;
+    }
+
     bool extractCurrentEntryToStream(ZipEntry& entryinfo, std::ostream& stream)
     {
         int err = UNZ_OK;
@@ -165,6 +189,30 @@ public:
         return UNZ_OK == err;
     }
 
+    bool extractCurrentEntryToStreamAndTest(ZipEntry& entryinfo, std::ostream& stream)
+    {
+        int err = UNZ_OK;
+
+        if (!entryinfo.valid())
+            return false;
+
+        err = extractToStreamAndTest(stream, entryinfo);
+        if (UNZ_OK == err)
+        {
+            err = unzCloseCurrentFile(m_zf);
+            if (UNZ_OK != err)
+            {
+                std::stringstream str;
+                str << "Error " << err << " opening internal file '"
+                    << entryinfo.name << "' in zip";
+
+                throw EXCEPTION_CLASS(str.str().c_str());
+            }
+        }
+
+        return UNZ_OK == err;
+    }
+
     bool extractCurrentEntryToMemory(ZipEntry& entryinfo, std::vector<unsigned char>& outvec)
     {
         int err = UNZ_OK;
@@ -173,6 +221,30 @@ public:
             return false;
 
         err = extractToMemory(outvec, entryinfo);
+        if (UNZ_OK == err)
+        {
+            err = unzCloseCurrentFile(m_zf);
+            if (UNZ_OK != err)
+            {
+                std::stringstream str;
+                str << "Error " << err << " opening internal file '"
+                    << entryinfo.name << "' in zip";
+
+                throw EXCEPTION_CLASS(str.str().c_str());
+            }
+        }
+
+        return UNZ_OK == err;
+    }
+
+    bool extractCurrentEntryToMemoryAndTest(ZipEntry& entryinfo, std::vector<unsigned char>& outvec)
+    {
+        int err = UNZ_OK;
+
+        if (!entryinfo.valid())
+            return false;
+
+        err = extractToMemoryAndTest(outvec, entryinfo);
         if (UNZ_OK == err)
         {
             err = unzCloseCurrentFile(m_zf);
@@ -323,13 +395,18 @@ public:
 
         return err;
     }
+
     bool testZipfile()
     {
         for (auto&& i : entries())
         {
             std::vector<unsigned char> vec;
-            extractToMemory(vec, i);
-            unsigned long actual_crc = crc32(0L, Z_NULL, 0);
+            int err = extractToMemory(vec, i);
+            if (err != UNZ_OK)
+            {
+                return false;
+            }
+            unsigned long actual_crc = 0;
             actual_crc = crc32(actual_crc, vec.data(), vec.size());
             if (actual_crc != i.crc)
             {
@@ -338,6 +415,76 @@ public:
         }
         return true;
     }
+
+
+    int extractToMemoryAndTest(std::vector<unsigned char>& outvec, ZipEntry& info)
+    {
+        int err = extractToMemory(outvec, info);
+        if (err != UNZ_OK)
+        {
+            return err;
+        }
+        unsigned long actual_crc = 0;
+        actual_crc = crc32(actual_crc, outvec.data(), outvec.size());
+        if (actual_crc != info.crc)
+        {
+            return UNZ_CRCERROR;
+        }
+        return err;
+    }
+
+    int extractToStreamAndTest(std::ostream& stream, ZipEntry& info)
+    {
+        std::vector<unsigned char> vec;
+        int err = extractToMemoryAndTest(vec, info);
+        if (err != UNZ_OK)
+        {
+            return err;
+        }
+        unsigned long actual_crc = 0;
+        actual_crc = crc32(actual_crc, vec.data(), vec.size());
+        if (actual_crc != info.crc)
+        {
+            return UNZ_CRCERROR;
+        }
+        stream.write(reinterpret_cast<char*>(vec.data()), vec.size());
+        if (stream.good())
+        {
+            stream.flush();
+            return err;
+        }
+        return UNZ_ERRNO;
+    }
+
+    int extractToFileAndTest(const std::string& filename, ZipEntry& info)
+    {
+        int err = UNZ_ERRNO;
+
+        /* If zip entry is a directory then create it on disk */
+        makedir(parentDirectory(filename));
+
+        /* Create the file on disk so we can unzip to it */
+        std::ofstream output_file(filename.c_str(), std::ofstream::binary);
+
+        if (output_file.good())
+        {
+            if (UNZ_OK == extractToStreamAndTest(output_file, info))
+                err = UNZ_OK;
+
+            output_file.close();
+
+            /* Set the time of the file that has been unzipped */
+            tm_unz timeaux;
+            memcpy(&timeaux, &info.unixdate, sizeof(timeaux));
+
+            changeFileDate(filename, info.dosdate, timeaux);
+        }
+        else
+            output_file.close();
+
+        return err;
+    }
+
 
 public:
     Impl(Unzipper& outer)
@@ -448,6 +595,30 @@ public:
         return true;
     }
 
+    bool extractAllAndTest(const std::string& destination, const std::map<std::string, std::string>& alternativeNames)
+    {
+        std::vector<ZipEntry> entries;
+        getEntries(entries);
+        std::vector<ZipEntry>::iterator it = entries.begin();
+        for (; it != entries.end(); ++it)
+        {
+            if (!locateEntry(it->name))
+                continue;
+
+            std::string alternativeName = destination.empty() ? "" : destination + CDirEntry::Separator;
+
+            if (alternativeNames.find(it->name) != alternativeNames.end())
+                alternativeName += alternativeNames.at(it->name);
+            else
+                alternativeName += it->name;
+
+            if (!extractCurrentEntryToFileAndTest(*it, alternativeName))
+                return false;
+        };
+
+        return true;
+    }
+
     bool extractEntry(const std::string& name, const std::string& destination)
     {
         std::string outputFile = destination.empty() ? name : destination + CDirEntry::Separator + name;
@@ -456,6 +627,21 @@ public:
         {
             ZipEntry entry = currentEntryInfo();
             return extractCurrentEntryToFile(entry, outputFile);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool extractEntryAndTest(const std::string& name, const std::string& destination)
+    {
+        std::string outputFile = destination.empty() ? name : destination + CDirEntry::Separator + name;
+
+        if (locateEntry(name))
+        {
+            ZipEntry entry = currentEntryInfo();
+            return extractCurrentEntryToFileAndTest(entry, outputFile);
         }
         else
         {
@@ -476,12 +662,38 @@ public:
         }
     }
 
+    bool extractEntryToStreamAndTest(const std::string& name, std::ostream& stream)
+    {
+        if (locateEntry(name))
+        {
+            ZipEntry entry = currentEntryInfo();
+            return extractCurrentEntryToStreamAndTest(entry, stream);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     bool extractEntryToMemory(const std::string& name, std::vector<unsigned char>& vec)
     {
         if (locateEntry(name))
         {
             ZipEntry entry = currentEntryInfo();
             return extractCurrentEntryToMemory(entry, vec);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool extractEntryToMemoryAndTest(const std::string& name, std::vector<unsigned char>& vec)
+    {
+        if (locateEntry(name))
+        {
+            ZipEntry entry = currentEntryInfo();
+            return extractCurrentEntryToMemoryAndTest(entry, vec);
         }
         else
         {
@@ -575,6 +787,33 @@ bool Unzipper::extract(const std::string& destination, const std::map<std::strin
 bool Unzipper::extract(const std::string& destination)
 {
     return m_impl->extractAll(destination, std::map<std::string, std::string>());
+}
+
+
+bool Unzipper::extractEntryAndTest(const std::string& name, const std::string& destination)
+{
+    return m_impl->extractEntryAndTest(name, destination);
+}
+
+bool Unzipper::extractEntryToStreamAndTest(const std::string& name, std::ostream& stream)
+{
+    return m_impl->extractEntryToStreamAndTest(name, stream);
+}
+
+bool Unzipper::extractEntryToMemoryAndTest(const std::string& name, std::vector<unsigned char>& vec)
+{
+    return m_impl->extractEntryToMemoryAndTest(name, vec);
+}
+
+
+bool Unzipper::extractAndTest(const std::string& destination, const std::map<std::string, std::string>& alternativeNames)
+{
+    return m_impl->extractAllAndTest(destination, alternativeNames);
+}
+
+bool Unzipper::extractAndTest(const std::string& destination)
+{
+    return m_impl->extractAllAndTest(destination, std::map<std::string, std::string>());
 }
 
 bool Unzipper::testZipfile()

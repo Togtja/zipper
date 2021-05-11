@@ -125,6 +125,72 @@ public:
                               std::vector<unsigned char>& vec);
 
     // -------------------------------------------------------------------------
+    //! \brief Extract the whole zip archive using alternative destination names
+    //! for existing files on the disk. And Validates the CRC
+    //!
+    //! \param[in] destination: the full path of the file to be created that
+    //!   will hold uncompressed data. If no destination is given extract in the
+    //!   same folder than the zip file.
+    //! \param[in] alternativeNames: dictionary of alternative names for
+    //!   existing files on disk (dictionary key: zip entry name, dictionary
+    //!   data: newly desired path name on the disk).
+    //!
+    //! \return true on success, else return false.
+    //! \throw std::runtime_error if something odd happened.
+    // -------------------------------------------------------------------------
+    bool extractAndTest(const std::string& destination,
+                        const std::map<std::string, std::string>& alternativeNames);
+
+    // -------------------------------------------------------------------------
+    //! \brief Extract the whole archive to the desired disk destination. If no
+    //!   destination is given extract in the same folder than the zip file.
+    //!   And Validates the CRC
+    //!
+    //! \param[in] destination: the full path on the disk of the file to be
+    //!   created that will hold uncompressed data. If no destination is given
+    //!   extract in the same folder than the zip file.
+    //! \return true on success, else return false.
+    //! \throw std::runtime_error if something odd happened.
+    // -------------------------------------------------------------------------
+    bool extractAndTest(const std::string& destination = std::string());
+
+    // -------------------------------------------------------------------------
+    //! \brief Extract a single entry from the archive. And Validates the CRC
+    //!
+    //! \param[in] name: the entry path inside the zip archive.
+    //! \param[in] destination: the full path on the disk of the file to be
+    //!   created that will hold uncompressed data. If no destination is given
+    //!   extract in the same folder than the zip file.
+    //! \return true on success, else return false.
+    //! \throw std::runtime_error if something odd happened.
+    // -------------------------------------------------------------------------
+    bool extractEntryAndTest(const std::string& name,
+                             const std::string& destination = std::string());
+
+    // -------------------------------------------------------------------------
+    //! \brief Extract a single entry from zip to memory (stream). And Validates
+    //!   the CRC
+    //!
+    //! \param[in] name: the entry path inside the zip archive.
+    //! \param[out] stream: the stream that will hold the extracted entry.
+    //! \return true on success, else return false.
+    //! \throw std::runtime_error if something odd happened.
+    // -------------------------------------------------------------------------
+    bool extractEntryToStreamAndTest(const std::string& name, std::ostream& stream);
+
+    // -------------------------------------------------------------------------
+    //! \brief Extract a single entry from zip to memory (vector). And Validates
+    //!   the CRC
+    //!
+    //! \param[in] name: the entry path inside the zip archive.
+    //! \param[out] vec: the vector that will hold the extracted entry.
+    //! \return true on success, else return false.
+    //! \throw std::runtime_error if something odd happened.
+    // -------------------------------------------------------------------------
+    bool extractEntryToMemoryAndTest(const std::string& name,
+                                     std::vector<unsigned char>& vec);
+
+    // -------------------------------------------------------------------------
     //! \brief Extract the zip entries to memory and test their CRCs
     //!
     //! \return true if all CRC were valid, else return false.
